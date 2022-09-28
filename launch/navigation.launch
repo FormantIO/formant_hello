@@ -1,0 +1,41 @@
+<launch>
+
+  <arg name="map_yaml" />
+
+  <include file="$(find stretch_core)/launch/rplidar.launch" />
+
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_yaml)" />
+
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" />
+
+  <include file="$(find amcl)/examples/amcl_diff.launch">
+  </include>
+
+  <node name="centered_base_link_tf_publisher" pkg="tf" type="static_transform_publisher" args="-0.1 0 0 0 0 0 1 /base_link /centered_base_link 100" />
+
+  <param name="robot_description" textfile="$(find stretch_description)/urdf/stretch.urdf" />
+  <arg name="calibrated_controller_yaml_file" value="$(find stretch_core)/config/controller_calibration_head.yaml"/>
+
+  <node
+      name="robot_state_publisher"
+      pkg="robot_state_publisher"
+      type="robot_state_publisher" >
+    <param name="publish_frequency" value="15.0"/>
+  </node>
+
+
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+    <rosparam file="$(find stretch_navigation)/config/common_costmap_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find stretch_navigation)/config/common_costmap_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find stretch_navigation)/config/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find stretch_navigation)/config/global_costmap_params_withmap.yaml" command="load" />
+    <rosparam file="$(find stretch_navigation)/config/base_local_planner_params.yaml" command="load" />
+    <remap from="/cmd_vel" to="/stretch/cmd_vel" />
+  </node>
+
+  <node name="integtration" pkg="formant_hello" type="formant_integration.py" output="screen" />
+
+  <!-- <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find stretch_navigation)/rviz/navigation.rviz" /> -->
+
+
+</launch>      

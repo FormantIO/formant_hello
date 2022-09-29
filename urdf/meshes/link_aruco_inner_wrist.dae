@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+    <asset>
+        <contributor>
+            <authoring_tool>ctmconv</authoring_tool>
+            <comments></comments>
+        </contributor>
+        <created>2022-09-19T22:37:48</created>
+        <modified>2022-09-19T22:37:48</modified>
+    </asset>
+    <library_geometries>
+        <geometry id="Mesh-1" name="Mesh-1">
+            <mesh>
+                <source id="Mesh-1-positions" name="position">
+                    <float_array id="Mesh-1-positions-array" count="24">-0.015 -0.015 -0.00025 -0.015 -0.015 -2.77556e-16 -0.015 0.015 -0.00025 -0.015 0.015 -2.77556e-16 0.015 -0.015 -0.00025 0.015 -0.015 -3.05311e-16 0.015 0.015 -0.00025 0.015 0.015 -3.05311e-16 </float_array>
+                    <technique_common>
+                        <accessor count="8" offset="0" source="#Mesh-1-positions-array" stride="3">
+                            <param name="X" type="float" />
+                            <param name="Y" type="float" />
+                            <param name="Z" type="float" />
+                        </accessor>
+                    </technique_common>
+                </source>
+                <vertices id="Mesh-1-vertices">
+                    <input semantic="POSITION" source="#Mesh-1-positions" />
+                </vertices>
+                <triangles count="12">
+                    <input offset="0" semantic="VERTEX" source="#Mesh-1-vertices" />
+                    <p>2 0 3 3 0 1 6 2 7 7 2 3 4 6 5 5 6 7 0 4 1 1 4 5 6 4 2 2 4 0 5 7 1 1 7 3 </p>
+                </triangles>
+            </mesh>
+        </geometry>
+    </library_geometries>
+    <library_visual_scenes>
+        <visual_scene id="Scene-1" name="Scene-1">
+            <node id="Object-1" name="Object-1">
+                <instance_geometry url="#Mesh-1" />
+            </node>
+        </visual_scene>
+    </library_visual_scenes>
+    <scene>
+        <instance_visual_scene url="#Scene-1" />
+    </scene>
+</COLLADA>

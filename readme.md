@@ -15,3 +15,5 @@ Notes about Hello-Robot Stretch Integration:
 6. Default ROS node had increasing lag on scan topic, currently investigating mitigation techniques
 7. No obvious way to "stop" a joint motion and is currently underway
 8. SDK only supports python2, which was depreciated on Jan 1 2020
+9. Navigation stack suffers greatly from wheel slip, does not appear to leverage SLAM techniques to minimize accumulated error
+10. Appears as though the default motor controllers for the base are poorly tuned, results in poor path following from navigation commands

@@ -4,7 +4,7 @@ import time
 from nbformat import current_nbformat_minor
 
 import rospy
-from std_msgs.msg import Bool, Float64
+from std_msgs.msg import Bool, Float64, String
 from geometry_msgs.msg import Twist, TransformStamped
 from sensor_msgs.msg import Image, JointState, LaserScan
 from nav_msgs.msg import Odometry
@@ -16,9 +16,8 @@ import stretch_body.base
 import stretch_body.robot
 import stretch_body.pimu
 
-
 import math
-
+import json
 
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
@@ -112,6 +111,30 @@ class HelloFormant():
         self.imu_mag_x_pub = rospy.Publisher('stretch_imu_mx', Float64, queue_size=1)
         self.imu_mag_y_pub = rospy.Publisher('stretch_imu_my', Float64, queue_size=1)
         self.imu_mag_z_pub = rospy.Publisher('stretch_imu_mz', Float64, queue_size=1)
+
+
+        self.pimu_cliff_pub = rospy.Publisher('stretch_pimu_cliff_event', Bool, queue_size=1)
+        self.pimu_buzzer_on_pub = rospy.Publisher('stretch_pimu_buzzer_on', Bool, queue_size=1)
+        self.pimu_runstop_event_pub = rospy.Publisher('stretch_pimu_runstop', Bool, queue_size=1)
+        self.pimu_fan_on_pub = rospy.Publisher('stretch_pimu_fan', Bool, queue_size=1)
+        self.pimu_high_current_pub = rospy.Publisher('stretch_pimu_high_current', Bool, queue_size=1)
+        self.pimu_over_tilt_pub = rospy.Publisher('stretch_pimu_over_tilt', Bool, queue_size=1)
+
+        self.pimu_transport_pub = rospy.Publisher('stretch_pimu_transport', String, queue_size=1)
+
+
+        self.arm_force_pub = rospy.Publisher('stretch_arm_force', Float64, queue_size=1)
+        self.arm_pos_pub = rospy.Publisher('stretch_arm_pos', Float64, queue_size=1)
+        self.lift_force_pub = rospy.Publisher('stretch_lift_force', Float64, queue_size=1)
+        self.lift_pos_pub = rospy.Publisher('stretch_lift_pos', Float64, queue_size=1)
+        self.head_tilt_pos_pub = rospy.Publisher('stretch_head_tilt_pos', Float64, queue_size=1)
+        self.head_tilt_effort_pub = rospy.Publisher('stretch_head_tilt_effort', Float64, queue_size=1)
+        self.head_pan_pos_pub = rospy.Publisher('stretch_head_pan_pos', Float64, queue_size=1)
+        self.head_pan_effort_pub = rospy.Publisher('stretch_head_pan_effort', Float64, queue_size=1)
+        self.base_right_wheel_pos_pub = rospy.Publisher('stretch_right_wheel_pos', Float64, queue_size=1)
+        self.base_right_wheel_current_pub = rospy.Publisher('stretch_right_wheel_current', Float64, queue_size=1)
+        self.left_wheel_pos_pub = rospy.Publisher('stretch_left_wheel_pos', Float64, queue_size=1)
+        self.left_wheel_current_pub = rospy.Publisher('stretch_left_wheel_current', Float64, queue_size=1)
 
     def handle_stow_arm(self, msg):
         rospy.loginfo(msg)
@@ -267,51 +290,29 @@ class HelloFormant():
     def publish_pimu_status(self):
         self.pimu.pull_status()
 
-        voltage_msg = Float64()
-        voltage_msg.data = self.pimu.status['voltage']
-        self.voltage_pub.publish(voltage_msg)
+        self.publish_float64_msg(self.pimu.status['voltage'], self.voltage_pub)
+        self.publish_float64_msg(self.pimu.status['current'], self.current_pub)
+        self.publish_float64_msg(self.pimu.status['temp'], self.temp_pub)
+        self.publish_float64_msg(self.pimu.status['cpu_temp'], self.cpu_temp_pub)
 
-        current_msg = Float64()
-        current_msg.data = self.pimu.status['current']
-        self.current_pub.publish(current_msg)
+        self.publish_float64_msg(self.pimu.status['imu']['ax'], self.imu_acc_x_pub)
+        self.publish_float64_msg(self.pimu.status['imu']['ay'], self.imu_acc_y_pub)
+        self.publish_float64_msg(self.pimu.status['imu']['az'], self.imu_acc_z_pub)
+        self.publish_float64_msg(self.pimu.status['imu']['gx'], self.imu_rot_x_pub)
+        self.publish_float64_msg(self.pimu.status['imu']['gy'], self.imu_rot_y_pub)
+        self.publish_float64_msg(self.pimu.status['imu']['gz'], self.imu_rot_z_pub)
+        self.publish_float64_msg(self.pimu.status['imu']['mx'], self.imu_mag_x_pub)
+        self.publish_float64_msg(self.pimu.status['imu']['my'], self.imu_mag_y_pub)
+        self.publish_float64_msg(self.pimu.status['imu']['mz'], self.imu_mag_z_pub)
 
-        temp_msg = Float64()
-        temp_msg.data = self.pimu.status['temp']
-        self.temp_pub.publish(temp_msg)
+        self.publish_bool_msg(self.pimu.status['cliff_event'], self.pimu_cliff_pub)
+        self.publish_bool_msg(self.pimu.status['buzzer_on'], self.pimu_buzzer_on_pub)
+        self.publish_bool_msg(self.pimu.status['runstop_event'], self.pimu_runstop_event_pub)
+        self.publish_bool_msg(self.pimu.status['fan_on'], self.pimu_fan_on_pub)
+        self.publish_bool_msg(self.pimu.status['high_current_alert'], self.pimu_high_current_pub)
+        self.publish_bool_msg(self.pimu.status['over_tilt_alert'], self.pimu_over_tilt_pub)
 
-        cpu_temp_msg = Float64()
-        cpu_temp_msg.data = self.pimu.status['temp']
-        self.cpu_temp_pub.publish(cpu_temp_msg)
-
-        imu_acc_x = Float64()
-        imu_acc_y = Float64()
-        imu_acc_z = Float64()
-        imu_rot_x = Float64()
-        imu_rot_y = Float64()
-        imu_rot_z = Float64()
-        imu_mag_x = Float64()
-        imu_mag_y = Float64()
-        imu_mag_z = Float64()
-
-        imu_acc_x = self.pimu.status['imu']['ax']
-        imu_acc_y = self.pimu.status['imu']['ay']
-        imu_acc_z = self.pimu.status['imu']['az']
-        imu_rot_x = self.pimu.status['imu']['gx']
-        imu_rot_y = self.pimu.status['imu']['gy']
-        imu_rot_z = self.pimu.status['imu']['gz']
-        imu_mag_x = self.pimu.status['imu']['mx']
-        imu_mag_y = self.pimu.status['imu']['my']
-        imu_mag_z = self.pimu.status['imu']['mz']        
-
-        self.imu_acc_x_pub.publish(imu_acc_x)
-        self.imu_acc_y_pub.publish(imu_acc_y)
-        self.imu_acc_z_pub.publish(imu_acc_z)
-        self.imu_rot_x_pub.publish(imu_rot_x)
-        self.imu_rot_y_pub.publish(imu_rot_y)
-        self.imu_rot_z_pub.publish(imu_rot_z)
-        self.imu_mag_x_pub.publish(imu_mag_x)
-        self.imu_mag_y_pub.publish(imu_mag_y)
-        self.imu_mag_z_pub.publish(imu_mag_z)        
+        self.publish_string_msg(json.dumps(self.pimu.status['transport']), self.pimu_transport_pub)
 
         # {'low_voltage_alert': False, 
         # 'cliff_range': [-40.50958251953125, -21.00262451171875, -20.82708740234375, -0.48065185546875], 
@@ -334,21 +335,53 @@ class HelloFormant():
 
 
     def publish_body_statuses(self):
-        print(self.arm.status)
-        print(self.base.status)
-        print(self.lift.status)
-        print(self.head.status)
+
+        self.arm.pull_status()
+        self.publish_float64_msg(self.arm.status["force"], self.arm_force_pub)
+        self.publish_float64_msg(self.arm.status["pos"], self.arm_pos_pub)
+
+        self.lift.pull_status()
+        self.publish_float64_msg(self.lift.status["force"], self.lift_force_pub)
+        self.publish_float64_msg(self.lift.status["pos"], self.lift_pos_pub)
+
+        self.head.pull_status()
+        self.publish_float64_msg(self.head.status["head_tilt"]["pos"], self.head_tilt_pos_pub)
+        self.publish_float64_msg(self.head.status["head_tilt"]["effort"], self.head_tilt_effort_pub)
+        self.publish_float64_msg(self.head.status["head_pan"]["pos"], self.head_pan_pos_pub)
+        self.publish_float64_msg(self.head.status["head_pan"]["effort"], self.head_pan_effort_pub)
+
+        self.base.pull_status()
+        self.publish_float64_msg(self.base.status["right_wheel"]["pos"], self.base_right_wheel_pos_pub)
+        self.publish_float64_msg(self.base.status["right_wheel"]["current"], self.base_right_wheel_current_pub)
+        self.publish_float64_msg(self.base.status["left_wheel"]["pos"], self.left_wheel_pos_pub)
+        self.publish_float64_msg(self.base.status["left_wheel"]["current"], self.left_wheel_current_pub)
+        
+        ## Other available information
+        # {'force': 2.956118405342102, 'timestamp_pc': 1664430119.843408, 'pos': 0.09999768526774287, 'traj_error': -0.09999768526774287, 'motor': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 14.578909873962402, 'near_vel_setpoint': False, 'pos_calibrated': True, 'at_current_limit': False, 'current': 0.05288226127624512, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.044095989118487, 'write_error': 0, 'itr': 173}, 'vel': -0.026414502412080765, 'pos_traj': 0.0, 'timestamp': 8721.911023, 'runstop_on': False, 'guarded_event': 10, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': 4.40685510635376, 'is_moving': False, 'err': -1.1717908819264267e-05, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': True, 'mode': 5, 'diag': 261, 'debug': 0.0, 'waiting_on_sync': False}, 'traj_err': 0.0, 'vel': -0.00018117877958932633}
+        # {'right_wheel': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 3080.986572265625, 'near_vel_setpoint': False, 'pos_calibrated': False, 'at_current_limit': False, 'current': -6.726232628759122e-46, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.117556813658918, 'write_error': 0, 'itr': 82}, 'vel': 0.1115519106388092, 'pos_traj': 0.0, 'timestamp': 8726.051032, 'runstop_on': False, 'guarded_event': 0, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': -5.605193857299268e-44, 'is_moving': False, 'err': 0.0, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': False, 'mode': 0, 'diag': 256, 'debug': 0.0, 'waiting_on_sync': False}, 'left_wheel': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 3717.80517578125, 'near_vel_setpoint': False, 'pos_calibrated': False, 'at_current_limit': False, 'current': -6.726232628759122e-46, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.12371079277344, 'write_error': 0, 'itr': 82}, 'vel': -0.07029969990253448, 'pos_traj': 0.0, 'timestamp': 8716.777032, 'runstop_on': False, 'guarded_event': 0, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': -5.605193857299268e-44, 'is_moving': False, 'err': 0.0, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': False, 'mode': 0, 'diag': 256, 'debug': 0.0, 'waiting_on_sync': False}, 'y_vel': 0.0, 'x': 1.094324671920253e-05, 'effort': [0, 0], 'theta_vel': 0.0010516439115676828, 'pose_time_s': 7.927008999999998, 'rotation_torque': 0.0, 'timestamp_pc': 1664430119.848871, 'y': 4.853148299899246e-10, 'theta': 0.000138829616044082, 'translation_force': -2.849232141542364e-44, 'x_vel': 5.5263887576803554e-05}
+        # {'force': -1.5717247009277346, 'timestamp_pc': 1664430119.840866, 'pos': 0.5930207017296297, 'traj_error': -0.5930207017296297, 'motor': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 62.100982666015625, 'near_vel_setpoint': False, 'pos_calibrated': True, 'at_current_limit': False, 'current': 0.5190436706542969, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.018832319738584, 'write_error': 0, 'itr': 488}, 'vel': -0.008914763107895851, 'pos_traj': 0.0, 'timestamp': 8730.181023, 'runstop_on': False, 'guarded_event': 15, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': 43.253639221191406, 'is_moving': False, 'err': -0.00017470336752012372, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': True, 'mode': 8, 'diag': 261, 'debug': 0.0, 'waiting_on_sync': False}, 'vel': -8.512971690689353e-05}
+        # {'head_tilt': {'comm_errors': 0, 'vel_ticks': 0, 'overheating_error': False, 'temp': 41.0, 'timestamp_pc': 1664430119.79559, 'stalled': True, 'electrical_shock_error': False, 'pos': -0.01227184630308513, 'trajectory_active': False, 'stall_overload': False, 'overload_error': False, 'pos_ticks': 2056, 'hardware_error': 0, 'shutdown': 0, 'effort_ticks': -45, 'vel': -0.0, 'effort': -4.39453125, 'motor_encoder_error': False, 'input_voltage_error': False}, 'head_pan': {'comm_errors': 0, 'vel_ticks': 0, 'overheating_error': False, 'temp': 36.0, 'timestamp_pc': 1664430119.79559, 'stalled': True, 'electrical_shock_error': False, 'pos': -0.0015339807878856412, 'trajectory_active': False, 'stall_overload': False, 'overload_error': False, 'pos_ticks': 1166, 'hardware_error': 0, 'shutdown': 0, 'effort_ticks': -5, 'vel': -0.0, 'effort': -0.48828125, 'motor_encoder_error': False, 'input_voltage_error': False}}
+        # {'force': 2.865717943954468, 'timestamp_pc': 1664430119.946876, 'pos': 0.10000007938858846, 'traj_error': -0.10000007938858846, 'motor': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 14.579258918762207, 'near_vel_setpoint': False, 'pos_calibrated': True, 'at_current_limit': False, 'current': 0.05126507949829102, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 9.962835663131392, 'write_error': 0, 'itr': 174}, 'vel': -0.014918167144060135, 'pos_traj': 0.0, 'timestamp': 8722.013023, 'runstop_on': False, 'guarded_event': 10, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': 4.272089958190918, 'is_moving': True, 'err': -0.0008841694798320532, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': True, 'mode': 5, 'diag': 277, 'debug': 0.0, 'waiting_on_sync': False}, 'traj_err': 0.0, 'vel': -0.0001023246728143643}
+        # {'right_wheel': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 3080.984619140625, 'near_vel_setpoint': False, 'pos_calibrated': False, 'at_current_limit': False, 'current': -6.726232628759122e-46, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 9.696512375219045, 'write_error': 0, 'itr': 83}, 'vel': -0.008616633713245392, 'pos_traj': 0.0, 'timestamp': 8726.154023, 'runstop_on': False, 'guarded_event': 0, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': -5.605193857299268e-44, 'is_moving': True, 'err': 0.0, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': False, 'mode': 0, 'diag': 272, 'debug': 0.0, 'waiting_on_sync': False}, 'left_wheel': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 3717.806396484375, 'near_vel_setpoint': False, 'pos_calibrated': False, 'at_current_limit': False, 'current': -6.726232628759122e-46, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 9.664829391487087, 'write_error': 0, 'itr': 83}, 'vel': 0.0058041587471961975, 'pos_traj': 0.0, 'timestamp': 8716.881023, 'runstop_on': False, 'guarded_event': 0, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': -5.605193857299268e-44, 'is_moving': False, 'err': 0.0, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': False, 'mode': 0, 'diag': 256, 'debug': 0.0, 'waiting_on_sync': False}, 'y_vel': 0.0, 'x': 5.471624490368337e-06, 'effort': [0, 0], 'theta_vel': -0.0014532543963204673, 'pose_time_s': 8.030499999999847, 'rotation_torque': 0.0, 'timestamp_pc': 1664430119.952302, 'y': 1.3715419078241808e-10, 'theta': 6.283173738044901, 'translation_force': -2.849232141542364e-44, 'x_vel': -5.287051284726114e-05}
+        # {'force': -1.5933265686035203, 'timestamp_pc': 1664430119.941239, 'pos': 0.5930173868111525, 'traj_error': -0.5930173868111525, 'motor': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 62.10063552856445, 'near_vel_setpoint': False, 'pos_calibrated': True, 'at_current_limit': False, 'current': 0.5187556457519531, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.023261649345095, 'write_error': 0, 'itr': 489}, 'vel': -0.0321974940598011, 'pos_traj': 0.0, 'timestamp': 8730.281023, 'runstop_on': False, 'guarded_event': 15, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': 43.229637145996094, 'is_moving': False, 'err': -0.00017470336752012372, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': True, 'mode': 8, 'diag': 261, 'debug': 0.0, 'waiting_on_sync': False}, 'vel': -0.00030746342008735694}
+        # {'head_tilt': {'comm_errors': 0, 'vel_ticks': 0, 'overheating_error': False, 'temp': 41.0, 'timestamp_pc': 1664430119.895175, 'stalled': True, 'electrical_shock_error': False, 'pos': -0.01227184630308513, 'trajectory_active': False, 'stall_overload': False, 'overload_error': False, 'pos_ticks': 2056, 'hardware_error': 0, 'shutdown': 0, 'effort_ticks': -45, 'vel': -0.0, 'effort': -4.39453125, 'motor_encoder_error': False, 'input_voltage_error': False}, 'head_pan': {'comm_errors': 0, 'vel_ticks': 0, 'overheating_error': False, 'temp': 36.0, 'timestamp_pc': 1664430119.895175, 'stalled': True, 'electrical_shock_error': False, 'pos': -0.0015339807878856412, 'trajectory_active': False, 'stall_overload': False, 'overload_error': False, 'pos_ticks': 1166, 'hardware_error': 0, 'shutdown': 0, 'effort_ticks': -5, 'vel': -0.0, 'effort': -0.48828125, 'motor_encoder_error': False, 'input_voltage_error': False}}
 
 
+    def publish_float64_msg(self, value, pub):
+        msg = Float64()
+        msg.data = value
+        pub.publish(msg)
 
-# {'force': 2.956118405342102, 'timestamp_pc': 1664430119.843408, 'pos': 0.09999768526774287, 'traj_error': -0.09999768526774287, 'motor': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 14.578909873962402, 'near_vel_setpoint': False, 'pos_calibrated': True, 'at_current_limit': False, 'current': 0.05288226127624512, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.044095989118487, 'write_error': 0, 'itr': 173}, 'vel': -0.026414502412080765, 'pos_traj': 0.0, 'timestamp': 8721.911023, 'runstop_on': False, 'guarded_event': 10, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': 4.40685510635376, 'is_moving': False, 'err': -1.1717908819264267e-05, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': True, 'mode': 5, 'diag': 261, 'debug': 0.0, 'waiting_on_sync': False}, 'traj_err': 0.0, 'vel': -0.00018117877958932633}
-# {'right_wheel': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 3080.986572265625, 'near_vel_setpoint': False, 'pos_calibrated': False, 'at_current_limit': False, 'current': -6.726232628759122e-46, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.117556813658918, 'write_error': 0, 'itr': 82}, 'vel': 0.1115519106388092, 'pos_traj': 0.0, 'timestamp': 8726.051032, 'runstop_on': False, 'guarded_event': 0, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': -5.605193857299268e-44, 'is_moving': False, 'err': 0.0, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': False, 'mode': 0, 'diag': 256, 'debug': 0.0, 'waiting_on_sync': False}, 'left_wheel': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 3717.80517578125, 'near_vel_setpoint': False, 'pos_calibrated': False, 'at_current_limit': False, 'current': -6.726232628759122e-46, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.12371079277344, 'write_error': 0, 'itr': 82}, 'vel': -0.07029969990253448, 'pos_traj': 0.0, 'timestamp': 8716.777032, 'runstop_on': False, 'guarded_event': 0, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': -5.605193857299268e-44, 'is_moving': False, 'err': 0.0, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': False, 'mode': 0, 'diag': 256, 'debug': 0.0, 'waiting_on_sync': False}, 'y_vel': 0.0, 'x': 1.094324671920253e-05, 'effort': [0, 0], 'theta_vel': 0.0010516439115676828, 'pose_time_s': 7.927008999999998, 'rotation_torque': 0.0, 'timestamp_pc': 1664430119.848871, 'y': 4.853148299899246e-10, 'theta': 0.000138829616044082, 'translation_force': -2.849232141542364e-44, 'x_vel': 5.5263887576803554e-05}
-# {'force': -1.5717247009277346, 'timestamp_pc': 1664430119.840866, 'pos': 0.5930207017296297, 'traj_error': -0.5930207017296297, 'motor': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 62.100982666015625, 'near_vel_setpoint': False, 'pos_calibrated': True, 'at_current_limit': False, 'current': 0.5190436706542969, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.018832319738584, 'write_error': 0, 'itr': 488}, 'vel': -0.008914763107895851, 'pos_traj': 0.0, 'timestamp': 8730.181023, 'runstop_on': False, 'guarded_event': 15, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': 43.253639221191406, 'is_moving': False, 'err': -0.00017470336752012372, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': True, 'mode': 8, 'diag': 261, 'debug': 0.0, 'waiting_on_sync': False}, 'vel': -8.512971690689353e-05}
-# {'head_tilt': {'comm_errors': 0, 'vel_ticks': 0, 'overheating_error': False, 'temp': 41.0, 'timestamp_pc': 1664430119.79559, 'stalled': True, 'electrical_shock_error': False, 'pos': -0.01227184630308513, 'trajectory_active': False, 'stall_overload': False, 'overload_error': False, 'pos_ticks': 2056, 'hardware_error': 0, 'shutdown': 0, 'effort_ticks': -45, 'vel': -0.0, 'effort': -4.39453125, 'motor_encoder_error': False, 'input_voltage_error': False}, 'head_pan': {'comm_errors': 0, 'vel_ticks': 0, 'overheating_error': False, 'temp': 36.0, 'timestamp_pc': 1664430119.79559, 'stalled': True, 'electrical_shock_error': False, 'pos': -0.0015339807878856412, 'trajectory_active': False, 'stall_overload': False, 'overload_error': False, 'pos_ticks': 1166, 'hardware_error': 0, 'shutdown': 0, 'effort_ticks': -5, 'vel': -0.0, 'effort': -0.48828125, 'motor_encoder_error': False, 'input_voltage_error': False}}
-# {'force': 2.865717943954468, 'timestamp_pc': 1664430119.946876, 'pos': 0.10000007938858846, 'traj_error': -0.10000007938858846, 'motor': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 14.579258918762207, 'near_vel_setpoint': False, 'pos_calibrated': True, 'at_current_limit': False, 'current': 0.05126507949829102, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 9.962835663131392, 'write_error': 0, 'itr': 174}, 'vel': -0.014918167144060135, 'pos_traj': 0.0, 'timestamp': 8722.013023, 'runstop_on': False, 'guarded_event': 10, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': 4.272089958190918, 'is_moving': True, 'err': -0.0008841694798320532, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': True, 'mode': 5, 'diag': 277, 'debug': 0.0, 'waiting_on_sync': False}, 'traj_err': 0.0, 'vel': -0.0001023246728143643}
-# {'right_wheel': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 3080.984619140625, 'near_vel_setpoint': False, 'pos_calibrated': False, 'at_current_limit': False, 'current': -6.726232628759122e-46, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 9.696512375219045, 'write_error': 0, 'itr': 83}, 'vel': -0.008616633713245392, 'pos_traj': 0.0, 'timestamp': 8726.154023, 'runstop_on': False, 'guarded_event': 0, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': -5.605193857299268e-44, 'is_moving': True, 'err': 0.0, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': False, 'mode': 0, 'diag': 272, 'debug': 0.0, 'waiting_on_sync': False}, 'left_wheel': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 3717.806396484375, 'near_vel_setpoint': False, 'pos_calibrated': False, 'at_current_limit': False, 'current': -6.726232628759122e-46, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 9.664829391487087, 'write_error': 0, 'itr': 83}, 'vel': 0.0058041587471961975, 'pos_traj': 0.0, 'timestamp': 8716.881023, 'runstop_on': False, 'guarded_event': 0, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': -5.605193857299268e-44, 'is_moving': False, 'err': 0.0, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': False, 'mode': 0, 'diag': 256, 'debug': 0.0, 'waiting_on_sync': False}, 'y_vel': 0.0, 'x': 5.471624490368337e-06, 'effort': [0, 0], 'theta_vel': -0.0014532543963204673, 'pose_time_s': 8.030499999999847, 'rotation_torque': 0.0, 'timestamp_pc': 1664430119.952302, 'y': 1.3715419078241808e-10, 'theta': 6.283173738044901, 'translation_force': -2.849232141542364e-44, 'x_vel': -5.287051284726114e-05}
-# {'force': -1.5933265686035203, 'timestamp_pc': 1664430119.941239, 'pos': 0.5930173868111525, 'traj_error': -0.5930173868111525, 'motor': {'in_sync_mode': False, 'is_mg_accelerating': False, 'calibration_rcvd': True, 'pos': 62.10063552856445, 'near_vel_setpoint': False, 'pos_calibrated': True, 'at_current_limit': False, 'current': 0.5187556457519531, 'in_guarded_event': False, 'transport': {'transaction_time_max': 0, 'timestamp_pc': 0, 'read_error': 0, 'transaction_time_avg': 0, 'rate': 10.023261649345095, 'write_error': 0, 'itr': 489}, 'vel': -0.0321974940598011, 'pos_traj': 0.0, 'timestamp': 8730.281023, 'runstop_on': False, 'guarded_event': 15, 'trajectory_active': False, 'is_mg_moving': False, 'in_safety_event': False, 'effort': 43.229637145996094, 'is_moving': False, 'err': -0.00017470336752012372, 'timestamp_line_sync': 0.000000, 'near_pos_setpoint': True, 'mode': 8, 'diag': 261, 'debug': 0.0, 'waiting_on_sync': False}, 'vel': -0.00030746342008735694}
-# {'head_tilt': {'comm_errors': 0, 'vel_ticks': 0, 'overheating_error': False, 'temp': 41.0, 'timestamp_pc': 1664430119.895175, 'stalled': True, 'electrical_shock_error': False, 'pos': -0.01227184630308513, 'trajectory_active': False, 'stall_overload': False, 'overload_error': False, 'pos_ticks': 2056, 'hardware_error': 0, 'shutdown': 0, 'effort_ticks': -45, 'vel': -0.0, 'effort': -4.39453125, 'motor_encoder_error': False, 'input_voltage_error': False}, 'head_pan': {'comm_errors': 0, 'vel_ticks': 0, 'overheating_error': False, 'temp': 36.0, 'timestamp_pc': 1664430119.895175, 'stalled': True, 'electrical_shock_error': False, 'pos': -0.0015339807878856412, 'trajectory_active': False, 'stall_overload': False, 'overload_error': False, 'pos_ticks': 1166, 'hardware_error': 0, 'shutdown': 0, 'effort_ticks': -5, 'vel': -0.0, 'effort': -0.48828125, 'motor_encoder_error': False, 'input_voltage_error': False}}
+    def publish_bool_msg(self, value, pub):
+        msg = Bool()
+        msg.data = value
+        pub.publish(msg)
+
+    def publish_string_msg(self, value, pub):
+        msg = String()
+        msg.data = value
+        pub.publish(msg)        
+
 
 if __name__ == "__main__":
 

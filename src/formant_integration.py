@@ -15,6 +15,7 @@ import stretch_body.head
 import stretch_body.base
 import stretch_body.robot
 import stretch_body.pimu
+import stretch_body.robot
 
 import math
 import json
@@ -34,34 +35,45 @@ class HelloFormant():
 
         self.bridge = CvBridge()
 
-        self.lift = stretch_body.lift.Lift()
-        self.arm  = stretch_body.arm.Arm()
-        self.head = stretch_body.head.Head()
-        self.base = stretch_body.base.Base()
-        self.pimu = stretch_body.pimu.Pimu()
+        self.robot = stretch_body.robot.Robot()
 
+        self.lift = self.robot.lift
+        self.arm  = self.robot.arm
+        self.head = self.robot.head
+        self.base = self.robot.base
+        self.pimu = self.robot.pimu
+
+#        self.lift = stretch_body.lift.Lift()
+#        self.arm  = stretch_body.arm.Arm()
+#        self.head = stretch_body.head.Head()
+#        self.base = stretch_body.base.Base()
+#        self.pimu = stretch_body.pimu.Pimu()
+
+#        self.runstop_stop()
+        self.runstop_reset()
 
         # self.lift.motor.disable_sync_mode()
-        if not self.lift.startup():
-            rospy.loginfo("Failed to start lift")
-            exit() # failed to start lift!
+#        if not self.lift.startup():
+#            rospy.loginfo("Failed to start lift")
+#            exit() # failed to start lift!
 
-        if not self.arm.startup():
-            rospy.loginfo("Failed to start arm")
-            exit()
+#        if not self.arm.startup():
+#            rospy.loginfo("Failed to start arm")
+#            exit()
 
-        if not self.head.startup():
-            rospy.loginfo("Failed to start head")
-            exit()
+#        if not self.head.startup():
+#            rospy.loginfo("Failed to start head")
+#            exit()
 
-        if not self.base.startup():
-            rospy.loginfo("Failed to start base")
-            exit()
+#        if not self.base.startup():
+#            rospy.loginfo("Failed to start base")
+#            exit()
 
-        if not self.pimu.startup():
-            rospy.loginfo("Failed to start PIMU")
-            exit()
+#        if not self.pimu.startup():
+#            rospy.loginfo("Failed to start PIMU")
+#            exit()
 
+        self.robot.startup()
 
         self.lift.home()
         self.arm.home()
@@ -160,16 +172,22 @@ class HelloFormant():
 
     def handle_joystick(self, msg):
         # command the base with translational and rotational velocities
+
+        if (msg.linear.x < 0):
+            msg.angular.z = -msg.angular.z
+
         self.base.set_velocity(msg.linear.x, msg.angular.z)
-        self.base.push_command()
+        self.robot.push_command()
+
+        print(str(msg.linear.x) + " " + str(msg.angular.z))
 
         if msg.linear.y != 0 or msg.linear.z != 0:
             self.head.pull_status()
             pan_starting_position = self.head.status['head_pan']['pos']
             tilt_starting_position = self.head.status['head_tilt']['pos']
 
-            self.head.move_to('head_pan',  pan_starting_position + 0.1*msg.linear.y)
-            self.head.move_to('head_tilt', tilt_starting_position + 0.15*msg.linear.z)
+            self.head.move_by('head_pan', 0.3*msg.linear.y)
+            self.head.move_by('head_tilt', 0.3*msg.linear.z)
 
 
     def move_extension_to(self,height):
@@ -203,6 +221,17 @@ class HelloFormant():
         image = cv2.flip(image,1)
 
         self.image_pub.publish(self.bridge.cv2_to_imgmsg(image, "rgb8"))
+
+
+    def runstop_stop(self):
+        self.pimu.runstop_event_trigger()
+        self.pimu.push_command()
+        time.sleep(1)
+
+    def runstop_reset(self):
+        self.pimu.runstop_event_reset()
+        self.pimu.push_command()
+        time.sleep(1)
 
 
     def get_joints(self):

@@ -5,7 +5,7 @@ from nbformat import current_nbformat_minor
 
 import rospy
 from std_msgs.msg import Bool, Float64, String
-from geometry_msgs.msg import Twist, TransformStamped
+from geometry_msgs.msg import Twist, TransformStamped, Pose2D, PoseWithCovarianceStamped
 from sensor_msgs.msg import Image, JointState, LaserScan
 from nav_msgs.msg import Odometry
 
@@ -26,6 +26,8 @@ from cv_bridge import CvBridge, CvBridgeError
 import tf2_ros
 import tf_conversions
 
+from tf.transformations import euler_from_quaternion
+
 class HelloFormant():
     def __init__(self):
 
@@ -42,36 +44,14 @@ class HelloFormant():
         self.head = self.robot.head
         self.base = self.robot.base
         self.pimu = self.robot.pimu
+        self.gripper = self.robot.end_of_arm
 
-#        self.lift = stretch_body.lift.Lift()
-#        self.arm  = stretch_body.arm.Arm()
-#        self.head = stretch_body.head.Head()
-#        self.base = stretch_body.base.Base()
-#        self.pimu = stretch_body.pimu.Pimu()
+        self.x = 0
+        self.y = 0
+        self.theta = 0
+        self.q = None
 
-#        self.runstop_stop()
         self.runstop_reset()
-
-        # self.lift.motor.disable_sync_mode()
-#        if not self.lift.startup():
-#            rospy.loginfo("Failed to start lift")
-#            exit() # failed to start lift!
-
-#        if not self.arm.startup():
-#            rospy.loginfo("Failed to start arm")
-#            exit()
-
-#        if not self.head.startup():
-#            rospy.loginfo("Failed to start head")
-#            exit()
-
-#        if not self.base.startup():
-#            rospy.loginfo("Failed to start base")
-#            exit()
-
-#        if not self.pimu.startup():
-#            rospy.loginfo("Failed to start PIMU")
-#            exit()
 
         self.robot.startup()
 
@@ -79,7 +59,10 @@ class HelloFormant():
         self.arm.home()
         self.head.home()
 
-        self.base_frame_id = 'base_link'
+        self.gripper.home("wrist_yaw")
+        self.gripper.home("stretch_gripper")
+
+        self.base_frame_id = 'map'
         self.odom_frame_id = 'odom'
 
         rospy.Subscriber("/stow_arm", Bool, self.handle_stow_arm)
@@ -92,7 +75,13 @@ class HelloFormant():
         rospy.Subscriber("/joystick", Twist, self.handle_joystick)
         rospy.Subscriber("/stretch/cmd_vel", Twist, self.handle_joystick)
 
+        rospy.Subscriber("/wrist_yaw", Float64, self.handle_wrist_yaw)
+        rospy.Subscriber("/gripper", Float64, self.handle_gripper)
+
         rospy.Subscriber("/camera/color/image_raw", Image, self.rgb_image_callback)
+
+        # rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.handle_pose_amcl)
+        rospy.Subscriber("/pose2D", Pose2D, self.handle_pose_lasermatch)
 
         self.image_pub = rospy.Publisher("/camera/color/image_raw_rotated",Image, queue_size=1)
 
@@ -102,6 +91,8 @@ class HelloFormant():
         self.laser_pub_map = rospy.Publisher('/reduced_scan_map', LaserScan, queue_size=1)
 
         self.odom_pub = rospy.Publisher('/odom', Odometry, queue_size=1)
+
+        self.odom_amcl_pub = rospy.Publisher('/odom_amcl', Odometry, queue_size=1)
 
         rospy.Subscriber("/scan", LaserScan, self.reduced_points_repub)
 
@@ -148,6 +139,27 @@ class HelloFormant():
         self.left_wheel_pos_pub = rospy.Publisher('stretch_left_wheel_pos', Float64, queue_size=1)
         self.left_wheel_current_pub = rospy.Publisher('stretch_left_wheel_current', Float64, queue_size=1)
 
+
+    def handle_pose_lasermatch(self, msg):
+        self.x = msg.x
+        self.y = msg.y
+        self.theta = msg.theta
+
+        self.publish_odom_laser_broadcast()
+
+    def handle_pose_amcl(self, msg):
+        self.x = msg.pose.pose.position.x
+        self.y = msg.pose.pose.position.y
+        quat = msg.pose.pose.orientation
+        self.q = [quat.x, quat.y, quat.z, quat.w]
+        
+        (r, p , y) = euler_from_quaternion(self.q) 
+        self.theta = y
+        
+        print(str(self.x) + " " + str(self.y) + " " + str(self.theta ))
+
+        self.publish_odom_amcl_broadcast()
+
     def handle_stow_arm(self, msg):
         rospy.loginfo(msg)
         rospy.loginfo("Stowing Arm")
@@ -170,6 +182,12 @@ class HelloFormant():
     def handle_head_pan(self, msg):
         self.pan_head_to(msg.data)
 
+    def handle_wrist_yaw(self, msg):
+        self.move_wrist_to(msg.data)
+
+    def handle_gripper(self, msg):
+        self.move_gripper_to(msg.data)
+
     def handle_joystick(self, msg):
         # command the base with translational and rotational velocities
 
@@ -179,7 +197,7 @@ class HelloFormant():
         self.base.set_velocity(msg.linear.x, msg.angular.z)
         self.robot.push_command()
 
-        print(str(msg.linear.x) + " " + str(msg.angular.z))
+        # print(str(msg.linear.x) + " " + str(msg.angular.z))
 
         if msg.linear.y != 0 or msg.linear.z != 0:
             self.head.pull_status()
@@ -193,12 +211,12 @@ class HelloFormant():
     def move_extension_to(self,height):
         self.arm.move_to(height)
         self.arm.push_command()
-        self.arm.motor.wait_until_at_setpoint()
+        # self.arm.motor.wait_until_at_setpoint()
 
     def move_lift_to(self,height):
         self.lift.move_to(height)
         self.lift.push_command()
-        self.lift.motor.wait_until_at_setpoint()
+        # self.lift.motor.wait_until_at_setpoint()
 
     def pan_head_to(self,value):
         rospy.loginfo("Pan head")
@@ -212,6 +230,16 @@ class HelloFormant():
         self.head.push_command()
         # self.head.motor.wait_until_at_setpoint()
 
+
+    def move_wrist_to(self, value):
+        rospy.loginfo("Wrist Yaw")
+        self.gripper.move_to('wrist_yaw', value)
+        self.gripper.push_command()
+
+    def move_gripper_to(self, value):
+        rospy.loginfo("Gripper")
+        self.gripper.move_to('stretch_gripper', value)
+        self.gripper.push_command()
 
     def rgb_image_callback(self, msg):
 
@@ -238,7 +266,7 @@ class HelloFormant():
 
         joints = JointState()
 
-        joints.name = ["joint_lift", "joint_head_pan", "joint_head_tilt", "joint_arm_l4", "joint_arm_l3", "joint_arm_l2", "joint_arm_l1", "joint_arm_l0"]
+        joints.name = ["joint_lift", "joint_head_pan", "joint_head_tilt", "joint_arm_l4", "joint_arm_l3", "joint_arm_l2", "joint_arm_l1", "joint_arm_l0", "joint_wrist_yaw", "joint_gripper_finger_left", "joint_gripper_finger_right"]
         
         self.head.pull_status()
         pan_position = self.head.status['head_pan']['pos']
@@ -254,8 +282,13 @@ class HelloFormant():
         l2_pos = extention_length / 5
         l1_pos = extention_length / 5
         l0_pos = extention_length / 5
+
+        self.gripper.pull_status()
+        wrist_yaw = self.gripper.status["wrist_yaw"]["pos"]
+        gripper_l = self.gripper.status["stretch_gripper"]["pos"]*0.1 + 0.4
+        gripper_r = gripper_l
         
-        joints.position = [lift_position, pan_position, tilt_position, l4_pos, l3_pos, l2_pos, l1_pos, l0_pos]
+        joints.position = [lift_position, pan_position, tilt_position, l4_pos, l3_pos, l2_pos, l1_pos, l0_pos, wrist_yaw, gripper_l, gripper_r]
 
         self.joints_pub.publish(joints)
 
@@ -280,6 +313,9 @@ class HelloFormant():
         x = base_status['x']
         y = base_status['y']
         theta = base_status['theta']
+        # x = self.x
+        # y = self.y
+        # theta = self.theta
         q = tf_conversions.transformations.quaternion_from_euler(0, 0, theta)
         x_vel = base_status['x_vel']
         x_effort = base_status['effort'][0]
@@ -315,6 +351,70 @@ class HelloFormant():
         odom.twist.twist.angular.z = theta_vel
         self.odom_pub.publish(odom)
 
+
+
+    def publish_odom_laser_broadcast(self):
+
+        current_time = rospy.Time.now()
+
+        self.base.pull_status()
+        base_status = self.base.status
+
+        # obtain odometry
+        x = self.x
+        y = self.y
+        q = tf_conversions.transformations.quaternion_from_euler(0, 0, self.theta)
+        x_vel = base_status['x_vel']
+        x_effort = base_status['effort'][0]
+        theta_vel = base_status['theta_vel']
+        pose_time_s = base_status['pose_time_s']
+
+        # publish odometry
+        odom = Odometry()
+        odom.header.stamp = current_time
+        odom.header.frame_id = self.odom_frame_id
+        odom.child_frame_id = self.base_frame_id
+        odom.pose.pose.position.x = x
+        odom.pose.pose.position.y = y
+        odom.pose.pose.orientation.x = q[0]
+        odom.pose.pose.orientation.y = q[1]
+        odom.pose.pose.orientation.z = q[2]
+        odom.pose.pose.orientation.w = q[3]
+        odom.twist.twist.linear.x = x_vel
+        odom.twist.twist.angular.z = theta_vel
+        self.odom_amcl_pub.publish(odom)
+
+    def publish_odom_amcl_broadcast(self):
+
+        current_time = rospy.Time.now()
+
+        self.base.pull_status()
+        base_status = self.base.status
+
+        # obtain odometry
+        x = self.x
+        y = self.y
+        q = self.q
+        # q = tf_conversions.transformations.quaternion_from_euler(0, 0, theta)
+        x_vel = base_status['x_vel']
+        x_effort = base_status['effort'][0]
+        theta_vel = base_status['theta_vel']
+        pose_time_s = base_status['pose_time_s']
+
+        # publish odometry
+        odom = Odometry()
+        odom.header.stamp = current_time
+        odom.header.frame_id = self.odom_frame_id
+        odom.child_frame_id = self.base_frame_id
+        odom.pose.pose.position.x = x
+        odom.pose.pose.position.y = y
+        odom.pose.pose.orientation.x = q[0]
+        odom.pose.pose.orientation.y = q[1]
+        odom.pose.pose.orientation.z = q[2]
+        odom.pose.pose.orientation.w = q[3]
+        odom.twist.twist.linear.x = x_vel
+        odom.twist.twist.angular.z = theta_vel
+        self.odom_amcl_pub.publish(odom)
 
     def publish_pimu_status(self):
         self.pimu.pull_status()

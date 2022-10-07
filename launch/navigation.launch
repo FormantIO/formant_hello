@@ -85,7 +85,7 @@
 
   <node name="integtration" pkg="formant_hello" type="formant_integration.py" output="screen" />
 
-  <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find stretch_navigation)/rviz/navigation.rviz" />
+  <!-- <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find stretch_navigation)/rviz/navigation.rviz" /> -->
 
 
 </launch>      

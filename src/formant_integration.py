@@ -140,6 +140,13 @@ class HelloFormant():
         self.left_wheel_current_pub = rospy.Publisher('stretch_left_wheel_current', Float64, queue_size=1)
 
 
+        self.lift_state_pub = rospy.Publisher('/lift_state', Float64, queue_size=1)
+        self.extend_state_pub = rospy.Publisher('/extend_state', Float64, queue_size=1)
+        self.pan_head_state_pub = rospy.Publisher('/pan_head_state', Float64, queue_size=1)
+        self.tilt_head_state_pub = rospy.Publisher('/tilt_head_state', Float64, queue_size=1)
+        self.gripper_state_pub = rospy.Publisher('/gripper_state', Float64, queue_size=1)
+        self.wrist_yaw_state_pub = rospy.Publisher('/wrist_yaw_state', Float64, queue_size=1)
+
     def handle_pose_lasermatch(self, msg):
         self.x = msg.x
         self.y = msg.y
@@ -210,12 +217,12 @@ class HelloFormant():
 
     def move_extension_to(self,height):
         self.arm.move_to(height)
-        self.arm.push_command()
+        self.robot.push_command()
         # self.arm.motor.wait_until_at_setpoint()
 
     def move_lift_to(self,height):
         self.lift.move_to(height)
-        self.lift.push_command()
+        self.robot.push_command()
         # self.lift.motor.wait_until_at_setpoint()
 
     def pan_head_to(self,value):
@@ -291,6 +298,14 @@ class HelloFormant():
         joints.position = [lift_position, pan_position, tilt_position, l4_pos, l3_pos, l2_pos, l1_pos, l0_pos, wrist_yaw, gripper_l, gripper_r]
 
         self.joints_pub.publish(joints)
+
+
+        self.lift_state_pub.publish(lift_position)
+        self.extend_state_pub.publish(extention_length)
+        self.pan_head_state_pub.publish(pan_position)
+        self.tilt_head_state_pub.publish(tilt_position)
+        self.gripper_state_pub.publish( self.gripper.status["stretch_gripper"]["pos"]*50/4.72619480748 )
+        self.wrist_yaw_state_pub.publish(wrist_yaw)
 
     def reduced_points_repub(self, msg):
         if msg.header.seq % 8 == 0:

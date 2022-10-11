@@ -51,6 +51,10 @@ class HelloFormant():
         self.theta = 0
         self.q = None
 
+        self.laser_x = 0
+        self.laser_y = 0
+        self.laser_theta = 0
+
         self.runstop_reset()
 
         self.robot.startup()
@@ -62,10 +66,16 @@ class HelloFormant():
         self.gripper.home("wrist_yaw")
         self.gripper.home("stretch_gripper")
 
-        self.base_frame_id = 'map'
+        self.base_frame_id = 'base_link'
         self.odom_frame_id = 'odom'
 
         rospy.Subscriber("/stow_arm", Bool, self.handle_stow_arm)
+
+        rospy.Subscriber("/raise_to_top", Bool, self.handle_raise_to_top)
+        rospy.Subscriber("/lower_to_bottom", Bool, self.handle_lower_to_bottom)
+        rospy.Subscriber("/open_gripper", Bool, self.handle_open_gripper)
+        rospy.Subscriber("/close_gripper", Bool, self.handle_close_gripper)
+
         rospy.Subscriber("/lift_arm", Float64, self.handle_lift_arm)
         rospy.Subscriber("/extend_arm", Float64, self.handle_extend_arm)
 
@@ -80,8 +90,8 @@ class HelloFormant():
 
         rospy.Subscriber("/camera/color/image_raw", Image, self.rgb_image_callback)
 
-        # rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.handle_pose_amcl)
-        rospy.Subscriber("/pose2D", Pose2D, self.handle_pose_lasermatch)
+        rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.handle_pose_amcl)
+        rospy.Subscriber("/pose2D", Pose2D, self.handle_pose_lasermatch_odom)
 
         self.image_pub = rospy.Publisher("/camera/color/image_raw_rotated",Image, queue_size=1)
 
@@ -154,6 +164,13 @@ class HelloFormant():
 
         self.publish_odom_laser_broadcast()
 
+    def handle_pose_lasermatch_odom(self, msg):
+        self.laser_x = msg.x
+        self.laser_y = msg.y
+        self.laser_theta = msg.theta
+
+        self.publish_odom_broadcast(True)        
+
     def handle_pose_amcl(self, msg):
         self.x = msg.pose.pose.position.x
         self.y = msg.pose.pose.position.y
@@ -172,6 +189,31 @@ class HelloFormant():
         rospy.loginfo("Stowing Arm")
         if (msg.data):
             self.move_lift_to(0.2)
+
+
+    def handle_raise_to_top(self, msg):
+        rospy.loginfo(msg)
+        rospy.loginfo("Raising Arm")
+        if (msg.data):
+            self.move_lift_to(1.099)
+
+    def handle_lower_to_bottom(self, msg):
+        rospy.loginfo(msg)
+        rospy.loginfo("Lowering Arm")
+        if (msg.data):
+            self.move_lift_to(0.1)
+
+    def handle_open_gripper(self, msg):
+        rospy.loginfo(msg)
+        rospy.loginfo("Open Gripper")
+        if (msg.data):
+            self.move_gripper_to(0)
+
+    def handle_close_gripper(self, msg):
+        rospy.loginfo(msg)
+        rospy.loginfo("Close Gripper")
+        if (msg.data):
+            self.move_gripper_to(-50)                                    
 
     def handle_lift_arm(self, msg):
         rospy.loginfo(msg)
@@ -317,7 +359,7 @@ class HelloFormant():
             msg.header.frame_id = "map"
             self.laser_pub_map.publish(msg)
 
-    def publish_odom_broadcast(self):
+    def publish_odom_broadcast(self, use_laser=False):
 
         current_time = rospy.Time.now()
 
@@ -328,6 +370,10 @@ class HelloFormant():
         x = base_status['x']
         y = base_status['y']
         theta = base_status['theta']
+        if use_laser:
+            x = self.laser_x
+            y = self.laser_y
+            theta = self.laser_theta
         # x = self.x
         # y = self.y
         # theta = self.theta
@@ -419,8 +465,8 @@ class HelloFormant():
         # publish odometry
         odom = Odometry()
         odom.header.stamp = current_time
-        odom.header.frame_id = self.odom_frame_id
-        odom.child_frame_id = self.base_frame_id
+        odom.header.frame_id = "map"
+        odom.child_frame_id = "odom"
         odom.pose.pose.position.x = x
         odom.pose.pose.position.y = y
         odom.pose.pose.orientation.x = q[0]
@@ -535,7 +581,8 @@ if __name__ == "__main__":
     while True:
         # time.sleep(0.1)
         node.get_joints()
-        node.publish_odom_broadcast()
+        # node.publish_odom_broadcast()
         rate.sleep()
         node.publish_pimu_status()
         node.publish_body_statuses()
+        node.publish_odom_amcl_broadcast()

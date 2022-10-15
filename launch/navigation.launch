@@ -83,6 +83,7 @@
     <remap from="/cmd_vel" to="/stretch/cmd_vel" />
   </node>
 
+  <param name="disable_amcl_broadcast" type="bool" value="false" />
   <node name="integtration" pkg="formant_hello" type="formant_integration.py" output="screen" />
 
   <!-- <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find stretch_navigation)/rviz/navigation.rviz" /> -->

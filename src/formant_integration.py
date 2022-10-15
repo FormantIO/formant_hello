@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import time
 
 from nbformat import current_nbformat_minor
@@ -69,6 +69,8 @@ class HelloFormant():
         self.base_frame_id = 'base_link'
         self.odom_frame_id = 'odom'
 
+        self.odom_amcl_pub = rospy.Publisher('/odom_amcl', Odometry, queue_size=1)
+        
         rospy.Subscriber("/stow_arm", Bool, self.handle_stow_arm)
 
         rospy.Subscriber("/raise_to_top", Bool, self.handle_raise_to_top)
@@ -102,7 +104,7 @@ class HelloFormant():
 
         self.odom_pub = rospy.Publisher('/odom', Odometry, queue_size=1)
 
-        self.odom_amcl_pub = rospy.Publisher('/odom_amcl', Odometry, queue_size=1)
+        #self.odom_amcl_pub = rospy.Publisher('/odom_amcl', Odometry, queue_size=1)
 
         rospy.Subscriber("/scan", LaserScan, self.reduced_points_repub)
 
@@ -156,6 +158,8 @@ class HelloFormant():
         self.tilt_head_state_pub = rospy.Publisher('/tilt_head_state', Float64, queue_size=1)
         self.gripper_state_pub = rospy.Publisher('/gripper_state', Float64, queue_size=1)
         self.wrist_yaw_state_pub = rospy.Publisher('/wrist_yaw_state', Float64, queue_size=1)
+
+        self.disable_amcl=rospy.get_param('disable_amcl_broadcast')
 
     def handle_pose_lasermatch(self, msg):
         self.x = msg.x
@@ -585,4 +589,5 @@ if __name__ == "__main__":
         rate.sleep()
         node.publish_pimu_status()
         node.publish_body_statuses()
-        node.publish_odom_amcl_broadcast()
+        if not node.disable_amcl:
+            node.publish_odom_amcl_broadcast()

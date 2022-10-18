@@ -1,0 +1,23 @@
+<launch>
+
+  <arg name="rviz"        default="true"     doc="whether to show Rviz" />
+
+  <!-- STRETCH DRIVER -->
+  <param name="/stretch_driver/broadcast_odom_tf" type="bool" value="true"/>
+  <param name="/stretch_driver/mode" type="string" value="navigation" />
+  <include file="$(find stretch_core)/launch/stretch_driver.launch" pass_all_args="true"/>
+
+  <!-- LASER RANGE FINDER -->
+  <include file="$(find stretch_core)/launch/rplidar.launch" />
+
+
+  <param name="disable_amcl_broadcast" type="bool" value="true" />
+  <node name="integtration" pkg="formant_hello" type="formant_integration.py" output="screen" />
+
+  <!-- MAPPING -->
+  <node pkg="gmapping" type="slam_gmapping" name="gmapping_record_map" output="log" />
+
+  <!-- VISUALIZE -->
+  <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find stretch_navigation)/rviz/mapping.rviz" if="$(arg rviz)" />
+
+</launch>

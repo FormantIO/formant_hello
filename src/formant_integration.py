@@ -40,7 +40,7 @@ class HelloFormant():
         self.robot = stretch_body.robot.Robot()
 
         self.lift = self.robot.lift
-        self.arm  = self.robot.arm
+        self.arm = self.robot.arm
         self.head = self.robot.head
         self.base = self.robot.base
         self.pimu = self.robot.pimu
@@ -63,8 +63,9 @@ class HelloFormant():
         self.arm.home()
         self.head.home()
 
-        self.gripper.home("wrist_yaw")
-        self.gripper.home("stretch_gripper")
+        self.gripper.home()
+        #self.gripper.home("wrist_yaw")
+        #self.gripper.home("stretch_gripper")
 
         self.base_frame_id = 'base_link'
         self.odom_frame_id = 'odom'
@@ -583,6 +584,7 @@ if __name__ == "__main__":
 
     rate = rospy.Rate(10) # 10hz
     while True:
+        rospy.loginfo("Looping") 
         # time.sleep(0.1)
         node.get_joints()
         # node.publish_odom_broadcast()
@@ -591,3 +593,5 @@ if __name__ == "__main__":
         node.publish_body_statuses()
         if not node.disable_amcl:
             node.publish_odom_amcl_broadcast()
+        else:
+            node.publish_odom_broadcast()
